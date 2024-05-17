@@ -1,37 +1,34 @@
 #!/usr/bin/env python3
-'''request caching and tracking.
-'''
+"""
+Caching request module
+"""
 import redis
 import requests
 from functools import wraps
 from typing import Callable
 
 
-redis_store = redis.Redis()
-'''The module-level Redis instance.
-'''
-
-
-def theget_cacher(method: Callable) -> Callable:
-    '''Caches the output of fetched data.
-    '''
-    @wraps(method)
-    def my_apper(url) -> str:
-        '''The wrapper function for caching the output.
-        '''
-        redis_store.incr(f'count:{url}')
-        result = redis_store.get(f'result:{url}')
-        if result:
-            return result.decode('utf-8')
-        result = method(url)
-        redis_store.set(f'count:{url}', 0)
-        redis_store.setex(f'result:{url}', 10, result)
-        return result
+def track_get_page(fn: Callable) -> Callable:
+    """ Decorator for get_page
+    """
+    @wraps(fn)
+    def my_apper(url: str) -> str:
+        """ my_apper url's data is cache
+        """
+        client = redis.Redis()
+        client.incr(f'count:{url}')
+        cached_page = client.get(f'{url}')
+        if cached_page:
+            return cached_page.decode('utf-8')
+        response = fn(url)
+        client.set(f'{url}', response, 10)
+        return response
     return my_apper
 
 
-@theget_cacher
+@track_get_page
 def get_page(url: str) -> str:
-    '''let make URL after caching the request's response
-    '''
-    return requests.get(url).text
+    """ request to a given endpoint
+    """
+    response = requests.get(url)
+    return response.text
